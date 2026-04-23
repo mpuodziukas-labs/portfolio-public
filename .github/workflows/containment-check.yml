@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Structural gates only. Semantic leak-regex scanning runs pre-push locally.
+# Rationale: a public denylist reveals everything it denies. Structure is safe
+# to publish (path allowlist, size cap, manifest) — stack-specific patterns
+# stay local-only.
+
 jobs:
   containment:
     runs-on: ubuntu-latest
@@ -16,29 +21,17 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Blacklisted path scan
+      - name: Path blacklist
         run: |
           set -e
-          BLACKLIST='^(\.claude/|\.local/|\.git-hooks/|Library/|Desktop/|Obsidian/|\.zshrc|\.bashrc|\.bash_profile|\.env)'
+          BLACKLIST='^(dotfiles/|home/|\.env)'
           hits=$(git ls-files | grep -E "$BLACKLIST" || true)
           if [ -n "$hits" ]; then
-            echo "::error::Blacklisted paths in tree:"
+            echo "::error::Paths outside repo scope:"
             echo "$hits"
             exit 1
           fi
-          echo "blacklist: clean"
-
-      - name: Regex leak scan
-        run: |
-          set -e
-          LEAK_RE='192\.168\.2\.[12]|qwen3|gemma4|glm4|deepseek-r1|nomic-embed|~/Obsidian|/Obsidian/|STANDING_ORDER_|model-ops|consortium-verify|obsidian-brain|brain-inject|god-tier-execution|financial-guard|compact-workflow|devils-advocate|monk-validator'
-          hits=$(git grep -iE "$LEAK_RE" -- ':!README.md' ':!LICENSE' ':!.github/workflows/*' ':!.gitignore' || true)
-          if [ -n "$hits" ]; then
-            echo "::error::Leak pattern match:"
-            echo "$hits"
-            exit 1
-          fi
-          echo "regex: clean"
+          echo "paths: clean"
 
       - name: File size cap (2 MB)
         run: |
@@ -51,17 +44,28 @@ jobs:
           fi
           echo "size: clean"
 
-      - name: Manifest whitelist check
+      - name: Manifest whitelist
         run: |
           set -e
           ALLOWED='^(README\.md|LICENSE|\.gitignore|\.github/|portfolio/|projects/|public/|resume\.md|resume\.html)'
           violations=$(git ls-files | grep -vE "$ALLOWED" || true)
           if [ -n "$violations" ]; then
-            echo "::error::Files outside whitelist manifest:"
+            echo "::error::Files outside manifest:"
             echo "$violations"
             exit 1
           fi
-          echo "whitelist: clean"
+          echo "manifest: clean"
+
+      - name: Generic secret scan
+        run: |
+          set -e
+          SECRET_RE='(sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{36}|xoxb-[0-9]+-[0-9]+|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'
+          hits=$(git grep -E "$SECRET_RE" || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Secret pattern match"
+            exit 1
+          fi
+          echo "secrets: clean"
 
       - name: Summary
         run: echo "containment-check PASS"
