@@ -1,0 +1,66 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# CONTAINMENT GITIGNORE — whitelist-only pattern
+# Authority: STANDING_ORDER_PUBLIC_REPO_CONTAINMENT_20260423
+# Philosophy: deny everything, opt-in explicitly
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Deny-by-default
+*
+
+# Whitelist: root-level allowed files
+!README.md
+!LICENSE
+!.gitignore
+!.github/
+!.github/**
+
+# Whitelist: curated tree
+!portfolio/
+!portfolio/**
+!projects/
+!projects/**
+!public/
+!public/**
+!resume.md
+!resume.html
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Belt-and-suspenders: HARD deny even if accidentally re-allowed upstream
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Secrets / env / shell
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.secret
+.DS_Store
+.zshrc
+.bashrc
+.bash_profile
+.zsh_history
+.bash_history
+.*_history
+
+# Internal ops (never public)
+.claude/
+.local/
+.git-hooks/
+Library/
+Desktop/
+Obsidian/
+
+# Build debris
+node_modules/
+.next/
+dist/
+build/
+target/
+out/
+coverage/
+*.log
+
+# OS cruft
+Thumbs.db
+._*

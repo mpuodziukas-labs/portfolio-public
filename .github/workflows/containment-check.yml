@@ -1,0 +1,67 @@
+name: containment-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  containment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Blacklisted path scan
+        run: |
+          set -e
+          BLACKLIST='^(\.claude/|\.local/|\.git-hooks/|Library/|Desktop/|Obsidian/|\.zshrc|\.bashrc|\.bash_profile|\.env)'
+          hits=$(git ls-files | grep -E "$BLACKLIST" || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Blacklisted paths in tree:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "blacklist: clean"
+
+      - name: Regex leak scan
+        run: |
+          set -e
+          LEAK_RE='192\.168\.2\.[12]|qwen3|gemma4|glm4|deepseek-r1|nomic-embed|~/Obsidian|/Obsidian/|STANDING_ORDER_|model-ops|consortium-verify|obsidian-brain|brain-inject|god-tier-execution|financial-guard|compact-workflow|devils-advocate|monk-validator'
+          hits=$(git grep -iE "$LEAK_RE" -- ':!README.md' ':!LICENSE' ':!.github/workflows/*' ':!.gitignore' || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Leak pattern match:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "regex: clean"
+
+      - name: File size cap (2 MB)
+        run: |
+          set -e
+          hits=$(find . -type f -not -path './.git/*' -size +2M || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Files over 2MB:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "size: clean"
+
+      - name: Manifest whitelist check
+        run: |
+          set -e
+          ALLOWED='^(README\.md|LICENSE|\.gitignore|\.github/|portfolio/|projects/|public/|resume\.md|resume\.html)'
+          violations=$(git ls-files | grep -vE "$ALLOWED" || true)
+          if [ -n "$violations" ]; then
+            echo "::error::Files outside whitelist manifest:"
+            echo "$violations"
+            exit 1
+          fi
+          echo "whitelist: clean"
+
+      - name: Summary
+        run: echo "containment-check PASS"
